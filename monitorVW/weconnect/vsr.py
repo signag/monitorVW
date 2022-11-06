@@ -7,6 +7,9 @@ Created on Mon Jun 28 00:08:42 2021
 """
 
 import logging
+import logging_plus
+logger = logging_plus.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 class VSR:
     __vsr_fields = [
@@ -23,6 +26,7 @@ class VSR:
         ('0x0204FFFFFF', '0x0204040002', 'oil_level', 'minimum_warning'),
         ('0x0204FFFFFF', '0x0204040003', 'oil_level', 'dipstick_percentage'),
         ('0x0204FFFFFF', '0x0204040004', 'oil_level', 'display'),
+        ('0x0204FFFFFF', '0x0204040006', 'oil_level', 'level'),
         ('0x0204FFFFFF', '0x02040C0001', 'intervals', 'ad_blue_range'),
         ('0x0301FFFFFF', '0x0301010001', 'status', 'parking_light', {'1':'on','2':'off'}),
         ('0x0301FFFFFF', '0x0301020001', 'status', 'temperature_outside'),
@@ -139,8 +143,8 @@ class VSR:
                                     found = True
                                     break
                             if (not found):
-                                logging.warning('[parse_vsr] item %s, field %s not found', d['id'],f['id'])
-                                logging.warning('[parse_vsr] %s', f)
+                                logger.warning('[parse_vsr] item %s, field %s not found', d['id'],f['id'])
+                                logger.warning('[parse_vsr] %s', f)
         return rr
         
         

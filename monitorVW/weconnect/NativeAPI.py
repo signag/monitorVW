@@ -236,7 +236,7 @@ class WeConnect():
             if (scope in self.__oauth and 'refresh_token' in self.__oauth[scope]):
                 self.__refresh_oauth_scope(scope)
                 return True
-            logger.error('OAUTH {} not present. Cannot refresh'.format(scope))
+            logger.warning('OAUTH {} not present. Cannot refresh'.format(scope))
         logger.debug('OAuth [%s] checking failed', scope)
         return False
     

@@ -15,6 +15,7 @@ import influxdb_client
 from influxdb_client.client.write_api import SYNCHRONOUS
 from weconnect.NativeAPI import WeConnect
 from weconnect.NativeAPI import VWError
+from weconnect.vsr import VSR
 
 # Set up logging
 import logging
@@ -90,6 +91,8 @@ def getCl():
     logger.addHandler(logging.NullHandler())
     fLogger = logging_plus.getLogger(WeConnect.__module__)
     fLogger.addHandler(logging.NullHandler())
+    vLogger = logging_plus.getLogger(VSR.__module__)
+    vLogger.addHandler(logging.NullHandler())
     rLogger = logging_plus.getLogger()
     rLogger.addHandler(logging.NullHandler())
 
@@ -112,6 +115,8 @@ def getCl():
         logger.setLevel(logging.DEBUG)
         fLogger.addHandler(handler)
         fLogger.setLevel(logging.DEBUG)
+        vLogger.addHandler(handler)
+        vLogger.setLevel(logging.DEBUG)
 
     if args.Full:
         # Full logging
@@ -153,6 +158,8 @@ def getCl():
             logger.setLevel(logging.INFO)
             fLogger.addHandler(handler)
             fLogger.setLevel(logging.WARNING)
+            vLogger.addHandler(handler)
+            vLogger.setLevel(logging.WARNING)
 
     if args.test:
         testRun = True
@@ -337,6 +344,86 @@ def waitForNextCycle():
         logger.debug("At %s waiting for %s sec.", datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S,"), waitTimeSec)
         time.sleep(waitTimeSec)
 
+def storeCarData(vin, status, cvsOut, influxOut, cvsPath, influxWriteAPI, influxOrg, influxBucket):
+    """
+    Store car data in InfluxDB or file
+
+    The following car data are handled:
+    +----------------+-----------+-----------------------------------------------------------+
+    | name           | type      | Source                                                    |
+    +----------------+-----------+-----------------------------------------------------------+
+    | vin            | tag       | car.vehicleIdentificationNumber                           |
+    | mileage        | field     | vsr.status.distance_covered                               |
+    - tempOutside    | field     | vsr.status.temperature_outside                            |
+    | fuelLevel      | field     | vsr.status.fuel_level                                     |
+    - fuelMethod     | tag       | vsr.status.fuel_method ('0':'measured', '1':'calculated') |
+    | stateOfCharge  | field?    | vsr.status.state_of_charge                                |
+    """
+    sep = ";"
+    measurement = "carStatus"
+
+    local_datetime = datetime.datetime.now()
+    local_datetime_timestamp = float(local_datetime.strftime("%s"))
+    UTC_datetime_converted = datetime.datetime.utcfromtimestamp(local_datetime_timestamp)
+    mTS = UTC_datetime_converted.strftime("%Y-%m-%dT%H:%M:%S.%f000Z")
+    
+    mileage = status.get('distance_covered','UNKNOWN')
+    if mileage == "UNKNOWN":
+        mileageInt = None
+        mileagePr = ""
+    else:
+        mileageInt = int(mileage)
+        mileagePr = mileage
+        
+    fuelLevel = status.get('fuel_level','UNKNOWN')
+    if fuelLevel == "UNKNOWN":
+        fuelLevelInt = None
+        fuelLevelPr = ""
+    else:
+        fuelLevelInt = int(fuelLevel.split(" ")[0])
+        fuelLevelPr = format(fuelLevelInt)
+        
+    stateOfCharge = status.get('state_of_charge','UNKNOWN')
+    if stateOfCharge == "UNKNOWN":
+        stateOfChargeInt = None
+        stateOfChargePr = ""
+    else:
+        stateOfChargeInt = int(stateOfCharge.split(" ")[0])
+        stateOfChargePr = format(stateOfChargeInt)
+    
+    if influxOut:
+        point = influxdb_client.Point(measurement) \
+            .tag("vin", vin) \
+            .field("mileage", mileageInt) \
+            .field("fuelLevel", fuelLevelInt) \
+            .field("stateOfCharge", stateOfChargeInt)
+        influxWriteAPI.write(bucket=influxBucket, org=influxOrg, record=point)
+        
+    
+    if cvsOut:
+        title = "_measurement" +  sep + "_time" + sep + "vin" + sep + "mileage" + sep + "fuelLevel" + sep + "stateOfCharge" + "\n"
+        data = measurement + sep + mTS+ sep + vin + sep + mileagePr + sep + fuelLevelPr + sep + stateOfChargePr + "\n"
+        writeCvs(cvsPath, title, data)
+    
+def writeCvs(fp, title, data):
+    """
+    Write data to CVS file
+    """
+    f = None
+    newFile=True
+    if os.path.exists(fp):
+        newFile = False
+    if newFile:
+        f = open(fp, 'w')
+    else:
+        f = open(fp, 'a')
+    logger.debug("File opened: %s", fp)
+
+    if newFile:
+        f.write(title)
+    f.write(data)
+    f.close()
+
 #============================================================================================
 # Start __main__
 #============================================================================================
@@ -385,6 +472,7 @@ try:
         theVsr = vwc.get_vsr(theVin)
         thePvsr = vwc.parse_vsr(theVsr)
         theStatus = thePvsr.get('status',[])
+        theTripDataST = vwc.get_trip_data(theVin, "shortTerm")
     else:
         raise VWError("Requested car not registered at WeConnect")
     
@@ -417,22 +505,8 @@ while not stop:
             waitForNextCycle()
         noWait = False
 
-        # Query car data
-        mileage = theStatus.get('distance_covered','UNKNOWN')
-        # fb.evaluateDeviceInfo()
-        if not servRun:
-            logger.info("Measurement completed")
-
-        # Write data to CSV
-        #if cfg["csvOutput"]:
-        #    fp = cfg["csvFile"]
-        #    fb.writeDataToCsv(fp)
-
-        # Write data to InfluxDB
-        # if cfg["InfluxOutput"]:
-        #    fb.writeDataToInflux(influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
-        #    if not servRun:
-        #        logger.info("Data written to InfluxDB")
+        # Store car data
+        storeCarData(theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
 
         if testRun:
             # Stop in case of test run
@@ -458,8 +532,8 @@ while not stop:
         if influxWriteAPI:
             del influxWriteAPI
 
-    except Exception as e:
-        logger.critical("Unexpected error (%s): %s", e.__class__, e.__cause__)
+    except Exception as error:
+        logger.critical("Unexpected error (%s): %s", error.__class__, error.__cause__)
         if vwc:
             del vwc
         if influxClient:

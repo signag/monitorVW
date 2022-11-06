@@ -130,3 +130,12 @@ dmypy.json
 
 #VSCode
 .vscode
+
+#Session files
+weconnectAPI.access
+weconnectAPI.session
+
+# Test
+#Test data
+tests/data/
+tests/output/
