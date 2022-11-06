@@ -1,0 +1,16 @@
+{
+    "measurementInterval": 10,
+    "weconUsername": "",
+    "weconPassword": "vwEfgdm",
+    "weconSPin": "",
+    "weconCarId": "",
+    "InfluxOutput": true,
+    "InfluxURL": "",
+    "InfluxOrg": "",
+    "InfluxToken": "",
+    "InfluxBucket": "",
+    "csvOutput": false,
+    "csvFile": "tests/output/monitorVW.csv",
+    "carData": [
+    ]
+}
