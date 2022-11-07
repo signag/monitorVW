@@ -457,7 +457,7 @@ def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket)
             if conf["InfluxOutput"]:
                 ts = trip["timestamp"][0:10]
                 if datetime.datetime.fromisoformat(ts) >= timeStart:
-                    tripToInflux(vin, trip, influxWriteAPI, influxOrg, influxBucket)
+                    tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket)
             if conf["csvOutput"]:
                 tripToCsv(trip, f, titleRequired)
                 titleRequired = False
@@ -475,7 +475,7 @@ def tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket
     electricPowerConsumed = avElPwCons * mileage / 100
     fuelConsumed = avFuelCons * mileage / 100
     point = influxdb_client.Point(measurement) \
-        .time(trip["timestamp"], influxdb_client.WritePrecision.S) \
+        .time(trip["timestamp"], influxdb_client.WritePrecision.MS) \
         .tag("vin", vin) \
         .tag("tripID", trip["tripID"]) \
         .tag("reportReason", trip["reportReason"]) \
@@ -549,7 +549,7 @@ try:
     
     if theCar:
         theVin = theCar.get('vehicleIdentificationNumber','UNKNOWN')
-        vwc.request_status_update(theVin)
+        #vwc.request_status_update(theVin)
         #theDetails = vwc.get_vehicle_data(theVin)
         #theCardata = theDetails.get('vehicleDataDetail',[]).get('carportData',[])
         theVsr = vwc.get_vsr(theVin)
@@ -573,11 +573,22 @@ try:
     stop = False
 
 except VWError as error:
+    #if error.message == "Error 429: [VSR.technical.9025] TSS responded: 429 - Too Many Requests":
+    #    stop = False
     logger.critical("Unexpected error: %s", error.message)
     stop = True
     vwc = None
     influxClient = None
     influxWriteAPI = None
+    
+except Exception as error:
+    logger.critical("Unexpected error (%s): %s", error.__class__, error.__cause__)
+    logger.critical("Unexpected error: %s", error.message)
+    stop = True
+    vwc = None
+    influxClient = None
+    influxWriteAPI = None
+    
 
 failcount = 0
 while not stop:
