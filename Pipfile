@@ -11,6 +11,7 @@ influxdb-client = "*"
 logging-plus = "*"
 
 [dev-packages]
+pandas = "*"
 
 [requires]
 python_version = "3.10"

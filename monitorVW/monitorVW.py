@@ -2,8 +2,8 @@
 """
 Module monitorVW
 
-This module periodically reads data from Fritz!Box Home Automation modules
-and and stores related measurement date in an InfluxDB
+This module periodically reads data from Volkswagen WeConnect
+and and stores specific car date in an InfluxDB or a CVS file
 """
 
 import time
@@ -293,8 +293,8 @@ def getConfig():
     logger.info("    csvOutput:%s", cfg["csvOutput"])
     logger.info("    csvFile:%s", cfg["csvFile"])
     logger.info("    carData:%s", len(cfg["carData"]))
-    for ind in range(0, len(cfg["carData"])):
-        dev = cfg["carData"][ind]
+    #for ind in range(0, len(cfg["carData"])):
+        #dev = cfg["carData"][ind]
         # logger.info("       %s (%s - %s)", dev["ain"], dev["location"], dev["sublocation"])
 
 
@@ -424,6 +424,88 @@ def writeCvs(fp, title, data):
     f.write(data)
     f.close()
 
+def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket):
+    """
+    Store trip data in InfluxDB or file 
+    """
+    if conf["InfluxOutput"] or conf["csvOutput"]:
+        if conf["InfluxOutput"]:
+            measurement = "trip_" + type
+            if "InfluxTimeStart" in conf:
+                timeStarts = conf["InfluxTimeStart"]
+            else:
+                timeStarts = "1980-01-01"
+            timeStart = datetime.datetime.fromisoformat(timeStarts)
+
+        if conf["csvOutput"]:
+            fp = conf["csvFile"]
+            f = None
+            newFile=True
+            if os.path.exists(fp):
+                newFile = False
+            if newFile:
+                f = open(fp, 'w')
+                titleRequired = True
+            else:
+                f = open(fp, 'a')
+                titleRequired = False
+            logger.debug("File opened: %s", fp)
+            
+        td = vwc.get_trip_data(theVin, type)
+        trips = td['tripDataList']['tripData']
+        for trip in trips:
+            if conf["InfluxOutput"]:
+                ts = trip["timestamp"][0:10]
+                if datetime.datetime.fromisoformat(ts) >= timeStart:
+                    tripToInflux(vin, trip, influxWriteAPI, influxOrg, influxBucket)
+            if conf["csvOutput"]:
+                tripToCsv(trip, f, titleRequired)
+                titleRequired = False
+        if f:
+            f.close()
+                
+def tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket):
+    """
+    Store trip data in Influx
+    """
+    # Calculate consumption per trip not per 100km
+    mileage = trip["mileage"]
+    avElPwCons = trip["averageElectricEngineConsumption"]/10
+    avFuelCons = trip["averageFuelConsumption"]/10
+    electricPowerConsumed = avElPwCons * mileage / 100
+    fuelConsumed = avFuelCons * mileage / 100
+    point = influxdb_client.Point(measurement) \
+        .time(trip["timestamp"], influxdb_client.WritePrecision.S) \
+        .tag("vin", vin) \
+        .tag("tripID", trip["tripID"]) \
+        .tag("reportReason", trip["reportReason"]) \
+        .field("startMileage", trip["startMileage"]) \
+        .field("mileage", trip["mileage"]) \
+        .field("traveltime", trip["traveltime"]) \
+        .field("electricPowerConsumed", electricPowerConsumed) \
+        .field("fuelConsumed", fuelConsumed)
+
+    influxWriteAPI.write(bucket=influxBucket, org=influxOrg, record=point)
+
+def tripToCsv(trip, fil, titleRequired):
+    """
+    Write trip to CVS file
+    """
+    sep = ";"
+    if titleRequired:
+        title = ""
+        for f in trip:
+            title = title + f + sep
+        title = title[0:len(title)-1] + "\n"
+        fil.write(title)
+    
+    data = ""
+    for f in trip:
+        data = data + format(trip[f]) + sep
+    data = data[0:len(data)-1] + "\n"
+    fil.write(data)
+            
+
 #============================================================================================
 # Start __main__
 #============================================================================================
@@ -467,12 +549,13 @@ try:
     
     if theCar:
         theVin = theCar.get('vehicleIdentificationNumber','UNKNOWN')
-        theDetails = vwc.get_vehicle_data(theVin)
-        theCardata = theDetails.get('vehicleDataDetail',[]).get('carportData',[])
+        vwc.request_status_update(theVin)
+        #theDetails = vwc.get_vehicle_data(theVin)
+        #theCardata = theDetails.get('vehicleDataDetail',[]).get('carportData',[])
         theVsr = vwc.get_vsr(theVin)
         thePvsr = vwc.parse_vsr(theVsr)
         theStatus = thePvsr.get('status',[])
-        theTripDataST = vwc.get_trip_data(theVin, "shortTerm")
+        #theTripDataST = vwc.get_trip_data(theVin, "shortTerm")
     else:
         raise VWError("Requested car not registered at WeConnect")
     
@@ -507,22 +590,25 @@ while not stop:
 
         # Store car data
         storeCarData(theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+        
+        if "carData" in cfg:
+            cfgc = cfg["carData"]
+            # Store short term trip data
+            if "tripDataShortTerm" in cfgc:
+                storeTripData(vwc, theVin, "shortTerm", cfgc["tripDataShortTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+            
+            # Store long term trip data
+            if "tripDataLongTerm" in cfgc:
+                storeTripData(vwc, theVin, "longTerm", cfgc["tripDataLongTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+            
+            # Store cyclic trip data
+            if "tripDataCyclic" in cfgc:
+                storeTripData(vwc, theVin, "cyclic", cfgc["tripDataCyclic"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
 
         if testRun:
             # Stop in case of test run
             stop = True
 
-#    except FritzBoxIgnoreableError as error:
-#        failcount = failcount + 1
-#        logger.error("Ignored FritzBoxIgnoreableError (%s): %s", failcount, error.message)
-#        noWait = True
-#        if testRun:
-#            # Stop in case of test run
-#            stop = True
-#        else:
-#            time.sleep(2.0)
-#            continue
-#
     except VWError as error:
         logger.critical("Unexpected error: %s", error.message)
         if vwc:
