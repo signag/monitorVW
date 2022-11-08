@@ -1,0 +1,14 @@
+[Unit]
+Description=monitorVW
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/python3.10 -u monitorVW.py -s
+WorkingDirectory=/usr/local/lib/python3.10/site-packages/monitorVW-0.1.0-py3.10.egg/monitorVW
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,7 @@
 {
-    "measurementInterval": 10,
+    "measurementInterval": 1800,
     "weconUsername": "",
-    "weconPassword": "vwEfgdm",
+    "weconPassword": "",
     "weconSPin": "",
     "weconCarId": "",
     "InfluxOutput": true,
@@ -11,6 +11,27 @@
     "InfluxBucket": "",
     "csvOutput": false,
     "csvFile": "tests/output/monitorVW.csv",
-    "carData": [
-    ]
+    "carData": {
+        "tripDataShortTerm": {
+            "InfluxOutput": true,
+            "InfluxMeasurement": "tripShortTerm",
+            "InfluxTimeStart": "2022-10-01",
+            "csvOutput": true,
+            "csvFile": "tests/output/monitorVW_tripST.csv"
+        },
+        "tripDataLongTerm": {
+            "InfluxOutput": false,
+            "InfluxMeasurement": "tripLongTerm",
+            "InfluxTimeStart": "2022-10-01",
+            "csvOutput": true,
+            "csvFile": "tests/output/monitorVW_tripLT.csv"
+        },
+        "tripDataCyclic": {
+            "InfluxOutput": false,
+            "InfluxMeasurement": "tripCyclic",
+            "InfluxTimeStart": "2022-10-01",
+            "csvOutput": true,
+            "csvFile": "tests/output/monitorVW_tripCy.csv"
+        }
+    }
 }

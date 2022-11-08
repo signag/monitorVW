@@ -3,7 +3,7 @@
 Module monitorVW
 
 This module periodically reads data from Volkswagen WeConnect
-and and stores specific car date in an InfluxDB or a CVS file
+and and stores specific car data in an InfluxDB or a CVS file
 """
 
 import time
@@ -29,7 +29,7 @@ servRun = False
 # Configuration defaults
 cfgFile = ""
 cfg = {
-    "measurementInterval": 120,
+    "measurementInterval": 1800,
     "weconUsername" : None,
     "weconPassword" : None,
     "weconSPin" : None,
@@ -293,10 +293,6 @@ def getConfig():
     logger.info("    csvOutput:%s", cfg["csvOutput"])
     logger.info("    csvFile:%s", cfg["csvFile"])
     logger.info("    carData:%s", len(cfg["carData"]))
-    #for ind in range(0, len(cfg["carData"])):
-        #dev = cfg["carData"][ind]
-        # logger.info("       %s (%s - %s)", dev["ain"], dev["location"], dev["sublocation"])
-
 
 def waitForNextCycle():
     """
@@ -344,9 +340,9 @@ def waitForNextCycle():
         logger.debug("At %s waiting for %s sec.", datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S,"), waitTimeSec)
         time.sleep(waitTimeSec)
 
-def storeCarData(vin, status, cvsOut, influxOut, cvsPath, influxWriteAPI, influxOrg, influxBucket):
+def storeCarStatusData(vin, status, cvsOut, influxOut, cvsPath, influxWriteAPI, influxOrg, influxBucket):
     """
-    Store car data in InfluxDB or file
+    Store car status data in InfluxDB or file
 
     The following car data are handled:
     +----------------+-----------+-----------------------------------------------------------+
@@ -426,7 +422,7 @@ def writeCvs(fp, title, data):
 
 def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket):
     """
-    Store trip data in InfluxDB or file 
+    Store trip data in InfluxDB and/or file 
     """
     if conf["InfluxOutput"] or conf["csvOutput"]:
         if conf["InfluxOutput"]:
@@ -480,7 +476,7 @@ def tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket
         .tag("tripID", trip["tripID"]) \
         .tag("reportReason", trip["reportReason"]) \
         .field("startMileage", trip["startMileage"]) \
-        .field("mileage", trip["mileage"]) \
+        .field("tripMileage", trip["mileage"]) \
         .field("traveltime", trip["traveltime"]) \
         .field("electricPowerConsumed", electricPowerConsumed) \
         .field("fuelConsumed", fuelConsumed)
@@ -504,7 +500,6 @@ def tripToCsv(trip, fil, titleRequired):
         data = data + format(trip[f]) + sep
     data = data[0:len(data)-1] + "\n"
     fil.write(data)
-            
 
 #============================================================================================
 # Start __main__
@@ -549,13 +544,11 @@ try:
     
     if theCar:
         theVin = theCar.get('vehicleIdentificationNumber','UNKNOWN')
+        #repeated Status update may leed to an exception "Too Many Requests"
         #vwc.request_status_update(theVin)
-        #theDetails = vwc.get_vehicle_data(theVin)
-        #theCardata = theDetails.get('vehicleDataDetail',[]).get('carportData',[])
         theVsr = vwc.get_vsr(theVin)
         thePvsr = vwc.parse_vsr(theVsr)
         theStatus = thePvsr.get('status',[])
-        #theTripDataST = vwc.get_trip_data(theVin, "shortTerm")
     else:
         raise VWError("Requested car not registered at WeConnect")
     
@@ -573,8 +566,9 @@ try:
     stop = False
 
 except VWError as error:
-    #if error.message == "Error 429: [VSR.technical.9025] TSS responded: 429 - Too Many Requests":
-    #    stop = False
+    # It may be necessary to specifically handle the following error
+    # if error.message == "Error 429: [VSR.technical.9025] TSS responded: 429 - Too Many Requests":
+    #     stop = False
     logger.critical("Unexpected error: %s", error.message)
     stop = True
     vwc = None
@@ -600,7 +594,7 @@ while not stop:
         noWait = False
 
         # Store car data
-        storeCarData(theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+        storeCarStatusData(theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
         
         if "carData" in cfg:
             cfgc = cfg["carData"]
