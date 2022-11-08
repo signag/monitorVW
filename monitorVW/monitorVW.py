@@ -424,6 +424,7 @@ def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket)
     """
     Store trip data in InfluxDB and/or file 
     """
+    f = None
     if conf["InfluxOutput"] or conf["csvOutput"]:
         if conf["InfluxOutput"]:
             measurement = "trip_" + type
