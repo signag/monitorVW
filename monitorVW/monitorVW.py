@@ -343,7 +343,7 @@ def waitForNextCycle():
         logger.debug("At %s waiting for %s sec.", datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S,"), waitTimeSec)
         time.sleep(waitTimeSec)
 
-def storeCarStatusData(vin, status, csvOut, influxOut, csvPath, influxWriteAPI, influxOrg, influxBucket):
+def storeCarStatusData(mTS, vin, status, csvOut, influxOut, csvPath, influxWriteAPI, influxOrg, influxBucket):
     """
     Store car status data in InfluxDB or file
 
@@ -361,11 +361,6 @@ def storeCarStatusData(vin, status, csvOut, influxOut, csvPath, influxWriteAPI, 
     sep = ";"
     measurement = "carStatus"
 
-    local_datetime = datetime.datetime.now()
-    local_datetime_timestamp = float(local_datetime.strftime("%s"))
-    UTC_datetime_converted = datetime.datetime.utcfromtimestamp(local_datetime_timestamp)
-    mTS = UTC_datetime_converted.strftime("%Y-%m-%dT%H:%M:%S.%f000Z")
-    
     mileage = status.get('distance_covered','UNKNOWN')
     if mileage == "UNKNOWN":
         mileageInt = None
@@ -392,6 +387,7 @@ def storeCarStatusData(vin, status, csvOut, influxOut, csvPath, influxWriteAPI, 
     
     if influxOut:
         point = influxdb_client.Point(measurement) \
+            .time(mTS, influxdb_client.WritePrecision.MS) \
             .tag("vin", vin) \
             .field("mileage", mileageInt) \
             .field("fuelLevel", fuelLevelInt) \
@@ -516,30 +512,11 @@ def instWeConnect():
     """
     Instantiate connection to WE Connect
     """
-
-#============================================================================================
-# Start __main__
-#============================================================================================
-#
-# Get Command line options
-getCl()
-
-logger.info("=============================================================")
-logger.info("monitorVW started")
-logger.info("=============================================================")
-
-# Get configuration
-getConfig()
-
-fb = None
-influxClient = None
-influxWriteAPI = None
-
-try:
     # Log in to WeConnect
     userName = cfg["weconUsername"]
     password = cfg["weconPassword"]
     pin = cfg["weconSPin"]
+    logger.debug("Instantiating WeConnect vwc")
     vwc = WeConnect(userName, password, pin)
     logger.debug("WeConnect vwc instantiated")
     vwc.login()
@@ -562,10 +539,31 @@ try:
         logger.debug("getting theVin")
         theVin = theCar.get('vehicleIdentificationNumber','UNKNOWN')
         logger.debug("got theVin %s", theVin)
-        #repeated Status update may leed to an exception "Too Many Requests"
-        #vwc.request_status_update(theVin)
+        return vwc, theVin
     else:
         raise VWError("Requested car not registered at WeConnect")
+
+#============================================================================================
+# Start __main__
+#============================================================================================
+#
+# Get Command line options
+getCl()
+
+logger.info("=============================================================")
+logger.info("monitorVW started")
+logger.info("=============================================================")
+
+# Get configuration
+getConfig()
+
+fb = None
+influxClient = None
+influxWriteAPI = None
+
+try:
+    # Instantiate WeConnect
+    [vwc, theVin] = instWeConnect()
     
     # Instatntiate InfluxDB access
     if cfg["InfluxOutput"]:
@@ -576,9 +574,6 @@ try:
         )
         influxWriteAPI = influxClient.write_api(write_options=SYNCHRONOUS)
         logger.debug("Influx interface instantiated")
-
-    noWait = False
-    stop = False
 
 except VWError as error:
     # It may be necessary to specifically handle the following error
@@ -598,14 +593,22 @@ except Exception as error:
     influxClient = None
     influxWriteAPI = None
 
+
+noWait = False
+stop = False
 failcount = 0
 while not stop:
     try:
-        # Wait unless noWait is set in case of sensor error.
-        # Akip waiting for test run
+        # Wait unless noWait is set in case of VWError.
+        # Skip waiting for test run
         if not noWait and not testRun:
             waitForNextCycle()
         noWait = False
+
+        local_datetime = datetime.datetime.now()
+        local_datetime_timestamp = float(local_datetime.strftime("%s"))
+        UTC_datetime_converted = datetime.datetime.utcfromtimestamp(local_datetime_timestamp)
+        mTS = UTC_datetime_converted.strftime("%Y-%m-%dT%H:%M:%S.%f000Z")
 
         # Store car data
         logger.debug("getting status list")
@@ -614,7 +617,7 @@ while not stop:
         theStatus = thePvsr.get('status',[])
         logger.debug("got theStatus")
         logger.debug("storing car status data")
-        storeCarStatusData(theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+        storeCarStatusData(mTS, theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
         
         if "carData" in cfg:
             cfgc = cfg["carData"]
@@ -638,15 +641,34 @@ while not stop:
             stop = True
 
     except VWError as error:
-        # 
-        stop = True
-        logger.critical("Unexpected VWError: %s", error.message)
-        if vwc:
-            del vwc
-        if influxClient:
-            del influxClient
-        if influxWriteAPI:
-            del influxWriteAPI
+        if failcount < 1:
+            # try to re-instantiate WeConnect
+            logger.warning("Unexpected VWError: %s", error.message)
+            logger.debug("failcount: %s", failcount)
+            failcount = failcount + 1
+            logger.debug("destroying vwc")
+            if vwc:
+                del vwc
+            theVin = None
+            logger.debug("Try to newly instantiate WeConnect vwc")
+            [vwc, theVin] = instWeConnect()
+            logger.warning("vwc successfully instantiated")
+            stop = False
+            # In case the login fails for the second time, wait one period and reset failcount
+            if failcount > 1:
+                noWait = False
+                failcount = 0
+            else:
+                noWait = True
+        else:
+            stop = True
+            logger.critical("Unexpected VWError: %s", error.message)
+            if vwc:
+                del vwc
+            if influxClient:
+                del influxClient
+            if influxWriteAPI:
+                del influxWriteAPI
 
     except Exception as error:
         stop = True
