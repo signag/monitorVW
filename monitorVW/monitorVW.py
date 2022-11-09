@@ -80,6 +80,7 @@ def getCl():
     parser.add_argument("-l", "--log", action = "store_true", help="Shallow (module) logging")
     parser.add_argument("-L", "--Log", action = "store_true", help="Deep logging")
     parser.add_argument("-F", "--Full", action = "store_true", help="Full logging")
+    parser.add_argument("-p", "--logfile", help="path to log file")
     parser.add_argument("-f", "--file", help="Logging configuration from specified JSON dictionary file")
     parser.add_argument("-v", "--verbose", action = "store_true", help="Verbose - log INFO level")
     parser.add_argument("-c", "--config", help="Path to config file to be used")
@@ -98,6 +99,8 @@ def getCl():
 
     # Set handler and formatter to be used
     handler = logging.StreamHandler()
+    if args.logfile:
+        handler = logging.FileHandler(args.logfile)
     formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
     formatter2 = logging.Formatter('%(asctime)s %(name)-33s %(levelname)-8s %(message)s')
     handler.setFormatter(formatter)
@@ -340,7 +343,7 @@ def waitForNextCycle():
         logger.debug("At %s waiting for %s sec.", datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S,"), waitTimeSec)
         time.sleep(waitTimeSec)
 
-def storeCarStatusData(vin, status, cvsOut, influxOut, cvsPath, influxWriteAPI, influxOrg, influxBucket):
+def storeCarStatusData(vin, status, csvOut, influxOut, csvPath, influxWriteAPI, influxOrg, influxBucket):
     """
     Store car status data in InfluxDB or file
 
@@ -394,14 +397,16 @@ def storeCarStatusData(vin, status, cvsOut, influxOut, cvsPath, influxWriteAPI, 
             .field("fuelLevel", fuelLevelInt) \
             .field("stateOfCharge", stateOfChargeInt)
         influxWriteAPI.write(bucket=influxBucket, org=influxOrg, record=point)
+        logger.debug("car status data written to InfluxDB")
         
     
-    if cvsOut:
+    if csvOut:
         title = "_measurement" +  sep + "_time" + sep + "vin" + sep + "mileage" + sep + "fuelLevel" + sep + "stateOfCharge" + "\n"
         data = measurement + sep + mTS+ sep + vin + sep + mileagePr + sep + fuelLevelPr + sep + stateOfChargePr + "\n"
-        writeCvs(cvsPath, title, data)
+        writeCsv(csvPath, title, data)
+        logger.debug("car status data written to csv file")
     
-def writeCvs(fp, title, data):
+def writeCsv(fp, title, data):
     """
     Write data to CVS file
     """
@@ -446,10 +451,12 @@ def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket)
             else:
                 f = open(fp, 'a')
                 titleRequired = False
-            logger.debug("File opened: %s", fp)
-            
+            logger.debug("File opened for csv output: %s", fp)
+        
+        logger.debug("getting trip data")    
         td = vwc.get_trip_data(theVin, type)
         trips = td['tripDataList']['tripData']
+        logger.debug("%s trips revceived", str(len(trips)))
         for trip in trips:
             if conf["InfluxOutput"]:
                 ts = trip["timestamp"][0:10]
@@ -460,6 +467,7 @@ def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket)
                 titleRequired = False
         if f:
             f.close()
+            logger.debug("File closed: %s", fp)
                 
 def tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket):
     """
@@ -483,6 +491,7 @@ def tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket
         .field("fuelConsumed", fuelConsumed)
 
     influxWriteAPI.write(bucket=influxBucket, org=influxOrg, record=point)
+    logger.debug("trip written to InfluxDB: %s (%s)", trip["tripID"], trip["timestamp"])
 
 def tripToCsv(trip, fil, titleRequired):
     """
@@ -501,6 +510,12 @@ def tripToCsv(trip, fil, titleRequired):
         data = data + format(trip[f]) + sep
     data = data[0:len(data)-1] + "\n"
     fil.write(data)
+    logger.debug("trip written to csv file")
+    
+def instWeConnect():
+    """
+    Instantiate connection to WE Connect
+    """
 
 #============================================================================================
 # Start __main__
@@ -544,12 +559,11 @@ try:
         raise VWError("No cars registered at WeConnect for specified profile")
     
     if theCar:
+        logger.debug("getting theVin")
         theVin = theCar.get('vehicleIdentificationNumber','UNKNOWN')
+        logger.debug("got theVin %s", theVin)
         #repeated Status update may leed to an exception "Too Many Requests"
         #vwc.request_status_update(theVin)
-        theVsr = vwc.get_vsr(theVin)
-        thePvsr = vwc.parse_vsr(theVsr)
-        theStatus = thePvsr.get('status',[])
     else:
         raise VWError("Requested car not registered at WeConnect")
     
@@ -570,20 +584,19 @@ except VWError as error:
     # It may be necessary to specifically handle the following error
     # if error.message == "Error 429: [VSR.technical.9025] TSS responded: 429 - Too Many Requests":
     #     stop = False
-    logger.critical("Unexpected error: %s", error.message)
+    logger.critical("Unexpected VWError: %s", error.message)
     stop = True
     vwc = None
     influxClient = None
     influxWriteAPI = None
     
 except Exception as error:
-    logger.critical("Unexpected error (%s): %s", error.__class__, error.__cause__)
-    logger.critical("Unexpected error: %s", error.message)
+    logger.critical("Unexpected Exception (%s): %s", error.__class__, error.__cause__)
+    logger.critical("Unexpected Exception: %s", error.message)
     stop = True
     vwc = None
     influxClient = None
     influxWriteAPI = None
-    
 
 failcount = 0
 while not stop:
@@ -595,20 +608,29 @@ while not stop:
         noWait = False
 
         # Store car data
+        logger.debug("getting status list")
+        theVsr = vwc.get_vsr(theVin)
+        thePvsr = vwc.parse_vsr(theVsr)
+        theStatus = thePvsr.get('status',[])
+        logger.debug("got theStatus")
+        logger.debug("storing car status data")
         storeCarStatusData(theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
         
         if "carData" in cfg:
             cfgc = cfg["carData"]
             # Store short term trip data
             if "tripDataShortTerm" in cfgc:
+                logger.debug("storing trip data shortTerm")
                 storeTripData(vwc, theVin, "shortTerm", cfgc["tripDataShortTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
             
             # Store long term trip data
             if "tripDataLongTerm" in cfgc:
+                logger.debug("storing trip data longTerm")
                 storeTripData(vwc, theVin, "longTerm", cfgc["tripDataLongTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
             
             # Store cyclic trip data
             if "tripDataCyclic" in cfgc:
+                logger.debug("storing trip data cyclic")
                 storeTripData(vwc, theVin, "cyclic", cfgc["tripDataCyclic"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
 
         if testRun:
@@ -616,7 +638,9 @@ while not stop:
             stop = True
 
     except VWError as error:
-        logger.critical("Unexpected error: %s", error.message)
+        # 
+        stop = True
+        logger.critical("Unexpected VWError: %s", error.message)
         if vwc:
             del vwc
         if influxClient:
@@ -625,7 +649,8 @@ while not stop:
             del influxWriteAPI
 
     except Exception as error:
-        logger.critical("Unexpected error (%s): %s", error.__class__, error.__cause__)
+        stop = True
+        logger.critical("Unexpected Exception (%s): %s", error.__class__, error.__cause__)
         if vwc:
             del vwc
         if influxClient:
@@ -635,19 +660,14 @@ while not stop:
         raise error
 
     except KeyboardInterrupt:
+        stop = True
+        logger.debug("KeyboardInterrupt")
         if vwc:
             del vwc
         if influxClient:
             del influxClient
         if influxWriteAPI:
             del influxWriteAPI
-
-if vwc:
-    del vwc
-if influxClient:
-    del influxClient
-if influxWriteAPI:
-    del influxWriteAPI
 
 logger.info("=============================================================")
 logger.info("monitorVW terminated")

@@ -50,6 +50,7 @@ options:
   -l, --log             Shallow (module) logging
   -L, --Log             Deep logging
   -F, --Full            Full logging
+  -p, --logfile         path to log file
   -f FILE, --file FILE  Logging configuration from specified JSON dictionary file
   -v, --verbose         Verbose - log INFO level
   -c CONFIG, --config CONFIG
