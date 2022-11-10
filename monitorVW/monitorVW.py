@@ -429,11 +429,23 @@ def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket)
     if conf["InfluxOutput"] or conf["csvOutput"]:
         if conf["InfluxOutput"]:
             measurement = "trip_" + type
+            timeStartDates = "1900-01-01"
             if "InfluxTimeStart" in conf:
-                timeStarts = conf["InfluxTimeStart"]
-            else:
-                timeStarts = "1980-01-01"
-            timeStart = datetime.datetime.fromisoformat(timeStarts)
+                if conf["InfluxTimeStart"]:
+                    if len(conf["InfluxTimeStart"]) > 0:
+                        timeStartDates = conf["InfluxTimeStart"]
+            timeStartDate = datetime.datetime.fromisoformat(timeStartDates)
+            timePeriods = "9999"
+            if "InfluxDaysBefore" in conf:
+                    if conf["InfluxDaysBefore"]:
+                        if len(conf["InfluxDaysBefore"]) > 0:
+                            timePeriods = conf["InfluxDaysBefore"]
+            timePeriod = int(timePeriods)
+            timeStartPeriod = datetime.datetime.utcnow() - datetime.timedelta(days=timePeriod)
+            
+            timeStart = timeStartDate
+            if timeStartPeriod > timeStart:
+                timeStart = timeStartPeriod
 
         if conf["csvOutput"]:
             fp = conf["csvFile"]
@@ -562,9 +574,6 @@ influxClient = None
 influxWriteAPI = None
 
 try:
-    # Instantiate WeConnect
-    [vwc, theVin] = instWeConnect()
-    
     # Instatntiate InfluxDB access
     if cfg["InfluxOutput"]:
         influxClient = influxdb_client.InfluxDBClient(
@@ -574,20 +583,11 @@ try:
         )
         influxWriteAPI = influxClient.write_api(write_options=SYNCHRONOUS)
         logger.debug("Influx interface instantiated")
-
-except VWError as error:
-    # It may be necessary to specifically handle the following error
-    # if error.message == "Error 429: [VSR.technical.9025] TSS responded: 429 - Too Many Requests":
-    #     stop = False
-    logger.critical("Unexpected VWError: %s", error.message)
-    stop = True
-    vwc = None
-    influxClient = None
-    influxWriteAPI = None
     
 except Exception as error:
     logger.critical("Unexpected Exception (%s): %s", error.__class__, error.__cause__)
     logger.critical("Unexpected Exception: %s", error.message)
+    logger.critical("Could not get InfluxDB access")
     stop = True
     vwc = None
     influxClient = None
@@ -597,6 +597,8 @@ except Exception as error:
 noWait = False
 stop = False
 failcount = 0
+loggedIn = False
+vwc = None
 while not stop:
     try:
         # Wait unless noWait is set in case of VWError.
@@ -609,6 +611,13 @@ while not stop:
         local_datetime_timestamp = float(local_datetime.strftime("%s"))
         UTC_datetime_converted = datetime.datetime.utcfromtimestamp(local_datetime_timestamp)
         mTS = UTC_datetime_converted.strftime("%Y-%m-%dT%H:%M:%S.%f000Z")
+        
+        # Log In to WE Connect
+        if not loggedIn:
+            logger.debug("Login to WeConnect required")
+            [vwc, theVin] = instWeConnect()
+            loggedIn = True
+            logger.debug("Login successful")
 
         # Store car data
         logger.debug("getting status list")
@@ -641,34 +650,39 @@ while not stop:
             stop = True
 
     except VWError as error:
-        if failcount < 1:
-            # try to re-instantiate WeConnect
+        if loggedIn:
+            # if already logged in to WEConnect, it may be possible that the automatic forced login 
+            # was not successful. Therefore re-instantiate vwc and try again without waiting
             logger.warning("Unexpected VWError: %s", error.message)
-            logger.debug("failcount: %s", failcount)
-            failcount = failcount + 1
-            logger.debug("destroying vwc")
+            logger.warning("Trying to immediately re-instantiate WE Connect handle vwc")
             if vwc:
                 del vwc
-            theVin = None
-            logger.debug("Try to newly instantiate WeConnect vwc")
-            [vwc, theVin] = instWeConnect()
-            logger.warning("vwc successfully instantiated")
+                vwc = None
+            loggedIn = False
             stop = False
-            # In case the login fails for the second time, wait one period and reset failcount
-            if failcount > 1:
-                noWait = False
-                failcount = 0
-            else:
-                noWait = True
+            noWait = True
         else:
-            stop = True
-            logger.critical("Unexpected VWError: %s", error.message)
+            # exception occured during login
+            # wait a cycle an try again
+            logger.warning("Unexpected VWError: %s", error.message)
+            logger.warning("Trying to re-instantiate WE Connect handle vwc in next cycle")
             if vwc:
                 del vwc
-            if influxClient:
-                del influxClient
-            if influxWriteAPI:
-                del influxWriteAPI
+                vwc = None
+            loggedIn = False
+            noWait = False
+            stop = False
+            failcount = failcount + 1
+            if failcount > 10:
+                stop = True
+                logger.critical("Could not establish connection to WE Connect after %s tries", failcount)
+                logger.critical("Stopping")
+                if vwc:
+                    del vwc
+                if influxClient:
+                    del influxClient
+                if influxWriteAPI:
+                    del influxWriteAPI
 
     except Exception as error:
         stop = True

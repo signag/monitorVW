@@ -90,7 +90,8 @@ A a template can be found under
         "tripDataShortTerm": {
             "InfluxOutput": true,
             "InfluxMeasurement": "tripShortTerm",
-            "InfluxTimeStart": "2022-10-01",
+            "InfluxTimeStart": "",
+            "InfluxDaysBefore": "5",
             "csvOutput": true,
             "csvFile": "tests/output/monitorVW_tripST.csv"
         },
@@ -98,6 +99,7 @@ A a template can be found under
             "InfluxOutput": false,
             "InfluxMeasurement": "tripLongTerm",
             "InfluxTimeStart": "2022-10-01",
+            "InfluxDaysBefore": "",
             "csvOutput": true,
             "csvFile": "tests/output/monitorVW_tripLT.csv"
         },
@@ -105,6 +107,7 @@ A a template can be found under
             "InfluxOutput": false,
             "InfluxMeasurement": "tripCyclic",
             "InfluxTimeStart": "2022-10-01",
+            "InfluxDaysBefore": "",
             "csvOutput": true,
             "csvFile": "tests/output/monitorVW_tripCy.csv"
         }
@@ -132,7 +135,8 @@ A a template can be found under
 | - **tripDataShortTerm** | Short term trip data (includes every individual trip)                                                             | Yes                |
 | -- InfluxOutput         | Specifies whether trip data shall be written to InfluxDB                                                          | Yes                |
 | -- InfluxMeasurement    | Measurement to be used for this kind of trip data                                                                 | Yes                |
-| -- InfluxTimeStart      | Start date from which on trips shall be included                                                                  | Yes                |
+| -- InfluxTimeStart      | Start date from which on trips shall be included (default: 01.01.1900)                                            | Yes                |
+| -- InfluxDaysBefore     | Number of days before current date from which on trips shall be included (default: 9999) (later of both is uesd)  | Yes                |
 | -- csvOutput            | Specifies whether these trip data shall be written to a cvs file                                                  | Yes                |
 | -- csvFile              | File path to which these trip data shall be written                                                               | Yes                |
 | - **tripDataLongTerm**  | Long term trip data (aggregated trip data for longer periods                                                      | No                 |
