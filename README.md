@@ -19,13 +19,14 @@ For visualization with Grafana, see <https://grafana.com/>
 
 | Step | Action                                                                                                                                       |
 |------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.   | Install **monitorVW** (```[sudo] pip install monitorVW```) on a Linux system (e.g. Raspberry Pi)                                 |
+| 1.   | Install **monitorVW** (```[sudo] pip install monitorVW```) on a Linux system (e.g. Raspberry Pi)                                             |
 | 2.   | Install and configure an InfluxDB V2.4 (<https://docs.influxdata.com/influxdb/v2.4/install/>)                                                |
-| 3.   | In InfluxDB, create a new bucket (<https://docs.influxdata.com/influxdb/v2.4/organizations/buckets/create-bucket/>)                          |
-| 5.   | In InfluxDB, create an API Token with write access to the bucket (<https://docs.influxdata.com/influxdb/v2.4/security/tokens/create-token/>) |
-| 6.   | Create and stage configuration file for **monitorVW** (see [Configuration](#configuration))                                            |
+| 3.   | In InfluxDB, create a new bucket for status data (<https://docs.influxdata.com/influxdb/v2.4/organizations/buckets/create-bucket/>)          |
+| 4.   | In InfluxDB, create a new bucket for trip data this should be different from status data because of longer retention period                  |
+| 5.   | In InfluxDB, create an API Token with write access to the buckets (<https://docs.influxdata.com/influxdb/v2.4/security/tokens/create-token/>)|
+| 6.   | Create and stage configuration file for **monitorVW** (see [Configuration](#configuration))                                                  |
 | 7.   | Do a test run (see [Usage](#usage))                                                                                                          |
-| 8.   | Set up **monitorVW** service (see [Serviceconfiguration](#serviceconfiguration))                               |
+| 8.   | Set up **monitorVW** service (see [Serviceconfiguration](#serviceconfiguration))                                                             |
 
 ## Usage
 
@@ -128,7 +129,8 @@ A a template can be found under
 | InfluxURL               | URL for access to Influx DB                                                                                       | Only for Influx    |
 | InfluxOrg               | Organization Name specified during InfluxDB installation                                                          | Only for Influx    |
 | InfluxToken             | Influx API Token (see [Getting started](#gettingstarted))                                                         | Only for Influx    |
-| InfluxBucket            | Bucket to be used for storage of car data                                                                         | Only for Influx    |
+| InfluxBucket            | Bucket to be used for storage of car status data                                                                  | Only for Influx    |
+| InfluxTripBucket        | Bucket to be used for storage of car trip data                                                                    | Only for Influx    |
 | csvOutput               | Specifies whether car data shall be written to a csv file (Default: false)                                        | No                 |
 | csvFile                 | Path to the csv file                                                                                              | For csvOutput=true |
 | **carData**             | list of car data to be considered (default: Empty)                                                                | No                 |

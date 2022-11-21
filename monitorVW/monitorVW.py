@@ -39,6 +39,7 @@ cfg = {
     "InfluxOrg" : None,
     "InfluxToken" : None,
     "InfluxBucket" : None,
+    "InfluxTripBucket" : None,
     "csvOutput" : False,
     "csvFile" : "",
     "carData" : []
@@ -252,6 +253,8 @@ def getConfig():
                 cfg["InfluxToken"] = conf["InfluxToken"]
             if "InfluxBucket" in conf:
                 cfg["InfluxBucket"] = conf["InfluxBucket"]
+            if "InfluxTripBucket" in conf:
+                cfg["InfluxTripBucket"] = conf["InfluxTripBucket"]
             if "csvOutput" in conf:
                 cfg["csvOutput"] = conf["csvOutput"]
             if "csvFile" in conf:
@@ -293,6 +296,7 @@ def getConfig():
     logger.info("    InfluxOrg:%s", cfg["InfluxOrg"])
     logger.info("    InfluxToken:%s", cfg["InfluxToken"])
     logger.info("    InfluxBucket:%s", cfg["InfluxBucket"])
+    logger.info("    InfluxTripBucket:%s", cfg["InfluxTripBucket"])
     logger.info("    csvOutput:%s", cfg["csvOutput"])
     logger.info("    csvFile:%s", cfg["csvFile"])
     logger.info("    carData:%s", len(cfg["carData"]))
@@ -633,17 +637,17 @@ while not stop:
             # Store short term trip data
             if "tripDataShortTerm" in cfgc:
                 logger.debug("storing trip data shortTerm")
-                storeTripData(vwc, theVin, "shortTerm", cfgc["tripDataShortTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+                storeTripData(vwc, theVin, "shortTerm", cfgc["tripDataShortTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
             
             # Store long term trip data
             if "tripDataLongTerm" in cfgc:
                 logger.debug("storing trip data longTerm")
-                storeTripData(vwc, theVin, "longTerm", cfgc["tripDataLongTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+                storeTripData(vwc, theVin, "longTerm", cfgc["tripDataLongTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
             
             # Store cyclic trip data
             if "tripDataCyclic" in cfgc:
                 logger.debug("storing trip data cyclic")
-                storeTripData(vwc, theVin, "cyclic", cfgc["tripDataCyclic"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+                storeTripData(vwc, theVin, "cyclic", cfgc["tripDataCyclic"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
 
         if testRun:
             # Stop in case of test run

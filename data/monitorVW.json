@@ -9,6 +9,7 @@
     "InfluxOrg": "",
     "InfluxToken": "",
     "InfluxBucket": "",
+    "InfluxTripBucket": "",
     "csvOutput": false,
     "csvFile": "tests/output/monitorVW.csv",
     "carData": {
