@@ -139,3 +139,5 @@ weconnectAPI.session
 #Test data
 tests/data/
 tests/output/
+tests_unused/data/
+tests_unused/output/

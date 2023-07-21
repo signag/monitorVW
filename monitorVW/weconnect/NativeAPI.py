@@ -309,6 +309,8 @@ class WeConnect():
                     try:
                         idk_txt = '{'+re.search(r'\{(.*)\}',script.string,re.M|re.S).group(1)+'}'
                         idk_txt = re.sub(r'([\{\s,])(\w+)(:)', r'\1"\2"\3', idk_txt.replace('\'','"'))
+                        ### response contained invalid JSON
+                        idk_txt = idk_txt.replace('"isFooterEnabled": false,', '"isFooterEnabled": false')
                         idk = json.loads(idk_txt)
                         break
                     except json.decoder.JSONDecodeError:

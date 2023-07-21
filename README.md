@@ -4,7 +4,7 @@ The program periodically reads car data from Volkswagen WeConnect and stores the
 
 For WeConnect, see: <https://www.volkswagen-nutzfahrzeuge.de/de/digitale-dienste-und-apps/we-connect.html>
 
-As interface to WeConnect Web ervices, I use <https://github.com/trocotronic/weconnect>
+As interface to WeConnect Web Services, I use <https://github.com/trocotronic/weconnect>
 
 In order to use the program you need
 - A registration at WeConnect
@@ -85,6 +85,7 @@ A a template can be found under
     "InfluxOrg": "inflixOrg",
     "InfluxToken": "influxToken",
     "InfluxBucket": "influxBucket",
+    "InfluxTripBucket": "influxTripBucket",
     "csvOutput": true,
     "csvFile": "tests/output/monitorVW.csv",
     "carData": {
