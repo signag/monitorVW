@@ -135,11 +135,7 @@ class VSR:
                                         if (len(e) == 5 and f['value'] in e[4]):
                                             rr[e[2]][e[3]] = e[4][f['value']]
                                         else:
-                                            # Added to return tsTssReceivedUtc instead of the value "echo" as utc_time
-                                            if e[3] == 'utc_time':
-                                                rr[e[2]][e[3]] = f['tsTssReceivedUtc'] if f['tsTssReceivedUtc'] else 'null'
-                                            else:
-                                                rr[e[2]][e[3]] = f['value'] if f['value'] else 'null'
+                                            rr[e[2]][e[3]] = f['value'] if f['value'] else 'null'
                                     if ('unit' in f):
                                         rr[e[2]][e[3]] += ' '+f['unit']
                                     #if ('textId' in f):
