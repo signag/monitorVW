@@ -603,6 +603,9 @@ stop = False
 failcount = 0
 loggedIn = False
 vwc = None
+newLoginMax = math.floor(3599/cfg["measurementInterval"])
+newLoginCount = 0
+
 while not stop:
     try:
         # Wait unless noWait is set in case of VWError.
@@ -622,6 +625,9 @@ while not stop:
             [vwc, theVin] = instWeConnect()
             loggedIn = True
             logger.debug("Login successful")
+            newLoginCount = 1
+        else:
+            newLoginCount = newLoginCount + 1
 
         # Store car data
         logger.debug("getting status list")
@@ -652,6 +658,11 @@ while not stop:
         if testRun:
             # Stop in case of test run
             stop = True
+            
+        # Force login
+        del vwc
+        vwc = None
+        loggedIn = False
 
     except VWError as error:
         if loggedIn:
