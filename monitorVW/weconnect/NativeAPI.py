@@ -9,8 +9,7 @@ import logging
 from weconnect.vsr import VSR
 import yaml
 
-#Setup logging
-import logging
+#Setup extended logging (modification by signag)
 import logging_plus
 logger = logging_plus.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -91,7 +90,7 @@ class WeConnect():
     ACCESS_FILE = 'weconnectAPI.access'
     BASE_URL = 'https://msg.volkswagen.de/fs-car'
     TOKEN_URL = 'https://tokenrefreshservice.apps.emea.vwapps.io'
-    PROFILE_URL = 'https://customer-profile.apps.emea.vwapps.io/v1/customers/{}'
+    PROFILE_URL = 'https://customer-profile.vwgroup.io/v1/customers/{}'    
     OAUTH_URL = 'https://mbboauth-1d.prd.ece.vwg-connect.com/mbbcoauth/mobile/oauth2/v1/token'
     USER_URL = 'https://userinformationservice.apps.emea.vwapps.io/iaa'
     MAL_URL = 'https://mal-1a.prd.ece.vwg-connect.com/api'
@@ -234,7 +233,9 @@ class WeConnect():
                 logger.debug('OAuth %s still valid', scope)
                 return True
             logger.debug('OAUth %s expired. Refreshing', scope)
-            if (scope in self.__oauth and 'refresh_token' in self.__oauth[scope]):
+            # Replacement recommended by trocotronic (issue #19)
+            #if (scope in self.__oauth and 'refresh_token' in self.__oauth[scope]):
+            if (scope in self.__oauth and 'refresh_token' in self.__oauth['sc2:fal']):
                 self.__refresh_oauth_scope(scope)
                 return True
             logger.error('OAUTH {} not present. Cannot refresh'.format(scope))

@@ -43,7 +43,7 @@ setup(
     # For a discussion on single-sourcing the version across setup.py and the
     # project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version="1.4.2",  # Required
+    version="1.4.3",  # Required
     # This is a one-line description or tagline of what your project does. This
     # corresponds to the "Summary" metadata field:
     # https://packaging.python.org/specifications/core-metadata/#summary
@@ -130,12 +130,12 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=["beautifulsoup4==4.11.1; python_full_version >= '3.6.0'",
                       'bs4==0.0.1',
-                      "certifi==2022.9.24; python_version >= '3.6'",
+                      "certifi==2023.7.22; python_version >= '3.6'",
                       "charset-normalizer==2.1.1; python_full_version >= '3.6.0'",
                       "colorama==0.4.6; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6'",
                       "idna==3.4; python_version >= '3.5'",
                       'influxdb-client==1.34.0',
-                      'logging-plus==1.0.0',
+                      'logging-plus==1.1.2',
                       "python-dateutil==2.8.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
                       "reactivex==4.0.4; python_version >= '3.7' and python_version < '4.0'",
                       'requests==2.28.1',

@@ -660,9 +660,9 @@ while not stop:
             stop = True
             
         # Force login
-        del vwc
-        vwc = None
-        loggedIn = False
+#        del vwc
+#        vwc = None
+#        loggedIn = False
 
     except VWError as error:
         if loggedIn:
