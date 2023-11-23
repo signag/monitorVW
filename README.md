@@ -4,7 +4,7 @@ The program periodically reads car data from Volkswagen WeConnect and stores the
 
 For WeConnect, see: <https://www.volkswagen-nutzfahrzeuge.de/de/digitale-dienste-und-apps/we-connect.html>
 
-As interface to WeConnect Web Services, I use <https://github.com/trocotronic/weconnect>
+As interface to WeConnect Web Services, I use <https://github.com/tillsteinbach/WeConnect-python>
 
 In order to use the program you need
 - A registration at WeConnect
@@ -14,6 +14,7 @@ In order to use the program you need
 InfluxDB (<https://www.influxdata.com/products/influxdb-overview/>) is a time series database which can be used as cloud version or local installation on various platforms.
 
 For visualization with Grafana, see <https://grafana.com/>
+A visualization client is available at <https://github.com/signag/Hybrid-Car-Consumption-Monitor>
 
 ## Getting started
 

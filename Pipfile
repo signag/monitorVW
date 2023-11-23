@@ -11,6 +11,8 @@ requests = "*"
 xmltodict = "*"
 bs4 = "*"
 vistir = "*"
+weconnect = "*"
+pytz = "*"
 
 [dev-packages]
 pipenv-setup = "*"

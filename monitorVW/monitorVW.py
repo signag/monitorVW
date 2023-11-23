@@ -8,14 +8,18 @@ and and stores specific car data in an InfluxDB or a CVS file
 
 import time
 import datetime
+import pytz
 import math
 import os.path
 import json
 import influxdb_client
 from influxdb_client.client.write_api import SYNCHRONOUS
-from weconnect.NativeAPI import WeConnect
-from weconnect.NativeAPI import VWError
-from weconnect.vsr import VSR
+from weconnect import weconnect
+from weconnect.domain import Domain
+from weconnect.elements.trip import Trip
+from weconnect.elements.vehicle import Vehicle
+from weconnect.errors import APICompatibilityError, AuthentificationError, TemporaryAuthentificationError
+from requests import codes
 
 # Set up logging
 import logging
@@ -91,9 +95,9 @@ def getCl():
     # Disable logging
     logger = logging_plus.getLogger("main")
     logger.addHandler(logging.NullHandler())
-    fLogger = logging_plus.getLogger(WeConnect.__module__)
+    fLogger = logging_plus.getLogger(weconnect.__package__)
     fLogger.addHandler(logging.NullHandler())
-    vLogger = logging_plus.getLogger(VSR.__module__)
+    vLogger = logging_plus.getLogger(Vehicle.__module__)
     vLogger.addHandler(logging.NullHandler())
     rLogger = logging_plus.getLogger()
     rLogger.addHandler(logging.NullHandler())
@@ -347,7 +351,7 @@ def waitForNextCycle():
         logger.debug("At %s waiting for %s sec.", datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S,"), waitTimeSec)
         time.sleep(waitTimeSec)
 
-def storeCarStatusData(mTS, vin, status, csvOut, influxOut, csvPath, influxWriteAPI, influxOrg, influxBucket):
+def storeCarStatusData(vehicle, vin, csvOut, influxOut, csvPath, influxWriteAPI, influxOrg, influxBucket):
     """
     Store car status data in InfluxDB or file
 
@@ -365,29 +369,35 @@ def storeCarStatusData(mTS, vin, status, csvOut, influxOut, csvPath, influxWrite
     sep = ";"
     measurement = "carStatus"
 
-    mileage = status.get('distance_covered','UNKNOWN')
-    if mileage == "UNKNOWN":
-        mileageInt = None
-        mileagePr = ""
-    else:
-        mileageInt = int(mileage)
-        mileagePr = mileage
-        
-    fuelLevel = status.get('fuel_level','UNKNOWN')
-    if fuelLevel == "UNKNOWN":
-        fuelLevelInt = None
-        fuelLevelPr = ""
-    else:
-        fuelLevelInt = int(fuelLevel.split(" ")[0])
-        fuelLevelPr = format(fuelLevelInt)
-        
-    stateOfCharge = status.get('state_of_charge','UNKNOWN')
-    if stateOfCharge == "UNKNOWN":
-        stateOfChargeInt = None
-        stateOfChargePr = ""
-    else:
-        stateOfChargeInt = int(stateOfCharge.split(" ")[0])
-        stateOfChargePr = format(stateOfChargeInt)
+    mileage = None
+    mileageInt = None
+    if vehicle.statusExists('measurements', 'odometerStatus') \
+            and vehicle.domains['measurements']['odometerStatus'].enabled:
+        odometerMeasurement = vehicle.domains['measurements']['odometerStatus']
+        if odometerMeasurement.odometer.enabled and odometerMeasurement.odometer is not None:
+            mileage = odometerMeasurement.odometer.value
+            mileageInt = mileage
+            mileagePr = format(mileageInt)
+
+    fuelLevel = None
+    fuelLevelInt = None
+    if vehicle.statusExists('measurements', 'fuelLevelStatus') \
+            and vehicle.domains['measurements']['fuelLevelStatus'].enabled:
+        fuelLevelMeasurement = vehicle.domains['measurements']['fuelLevelStatus']
+        if fuelLevelMeasurement.currentFuelLevel_pct.enabled and fuelLevelMeasurement.currentFuelLevel_pct is not None:
+            fuelLevel = fuelLevelMeasurement.currentFuelLevel_pct.value
+            fuelLevelInt = fuelLevel
+            fuelLevelPr = format(fuelLevelInt)
+
+    stateOfCharge = None
+    stateOfChargeInt = None
+    if vehicle.statusExists('measurements', 'fuelLevelStatus') \
+            and vehicle.domains['measurements']['fuelLevelStatus'].enabled:
+        batteryStatus = vehicle.domains['measurements']['fuelLevelStatus']
+        if batteryStatus.currentSOC_pct.enabled and batteryStatus.currentSOC_pct is not None:
+            stateOfCharge = batteryStatus.currentSOC_pct.value
+            stateOfChargeInt = stateOfCharge
+            stateOfChargePr = format(stateOfChargeInt)
     
     if influxOut:
         point = influxdb_client.Point(measurement) \
@@ -425,14 +435,34 @@ def writeCsv(fp, title, data):
     f.write(data)
     f.close()
 
-def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket):
+def fetchAllTrips(vehicle: Vehicle, tripType: Trip.TripType = Trip.TripType.SHORTTERM, force: bool = False):
+    allTrips = []
+    url = 'https://emea.bff.cariad.digital/vehicle/v1/trips/' + vehicle.vin.value + '/' + tripType.value.lower()
+
+    data = vehicle.weConnect.fetchData(url, force, allowEmpty=True, allowHttpError=True, allowedErrors=[codes['not_found'],
+                                                                                                        codes['no_content'],
+                                                                                                        codes['bad_gateway'],
+                                                                                                        codes['forbidden']])
+    if data is not None and 'data' in data:
+        for datan in data['data']:
+            allTrips.append(
+                Trip(vehicle=vehicle,
+                     parent=vehicle.trips,
+                     tripType=tripType.value,
+                     fromDict=datan)
+            )
+
+    return allTrips
+
+def storeTripData(vehicle, vin, type: Trip.TripType, conf, influxWriteAPI, influxOrg, influxBucket):
     """
     Store trip data in InfluxDB and/or file 
     """
     f = None
+    
     if conf["InfluxOutput"] or conf["csvOutput"]:
         if conf["InfluxOutput"]:
-            measurement = "trip_" + type
+            measurement = "trip_" + type.value
             timeStartDates = "1900-01-01"
             if "InfluxTimeStart" in conf:
                 if conf["InfluxTimeStart"]:
@@ -465,14 +495,14 @@ def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket)
                 titleRequired = False
             logger.debug("File opened for csv output: %s", fp)
         
-        logger.debug("getting trip data")    
-        td = vwc.get_trip_data(theVin, type)
-        trips = td['tripDataList']['tripData']
+        logger.debug("getting trip data")
+        trips = fetchAllTrips(vehicle, type)
         logger.debug("%s trips revceived", str(len(trips)))
         for trip in trips:
             if conf["InfluxOutput"]:
-                ts = trip["timestamp"][0:10]
-                if datetime.datetime.fromisoformat(ts) >= timeStart:
+                ts = trip.tripEndTimestamp.value
+                ts = ts.replace(tzinfo=None)
+                if ts >= timeStart:
                     tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket)
             if conf["csvOutput"]:
                 tripToCsv(trip, f, titleRequired)
@@ -481,29 +511,30 @@ def storeTripData(vwc, vin, type, conf, influxWriteAPI, influxOrg, influxBucket)
             f.close()
             logger.debug("File closed: %s", fp)
                 
-def tripToInflux(measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket):
+def tripToInflux(measurement, vin, trip: Trip, influxWriteAPI, influxOrg, influxBucket):
     """
     Store trip data in Influx
     """
     # Calculate consumption per trip not per 100km
-    mileage = trip["mileage"]
-    avElPwCons = trip["averageElectricEngineConsumption"]/10
-    avFuelCons = trip["averageFuelConsumption"]/10
+    ts = trip.tripEndTimestamp.value.replace(tzinfo=None)
+    mileage = trip.mileage_km.value
+    avElPwCons = trip.averageElectricConsumption.value
+    avFuelCons = trip.averageFuelConsumption.value
     electricPowerConsumed = avElPwCons * mileage / 100
     fuelConsumed = avFuelCons * mileage / 100
     point = influxdb_client.Point(measurement) \
-        .time(trip["timestamp"], influxdb_client.WritePrecision.MS) \
+        .time(ts, influxdb_client.WritePrecision.MS) \
         .tag("vin", vin) \
-        .tag("tripID", trip["tripID"]) \
-        .tag("reportReason", trip["reportReason"]) \
-        .field("startMileage", trip["startMileage"]) \
-        .field("tripMileage", trip["mileage"]) \
-        .field("traveltime", trip["traveltime"]) \
+        .tag("tripID", trip.id.value) \
+        .tag("reportReason", "clamp15off") \
+        .field("startMileage", trip.startMileage_km.value) \
+        .field("tripMileage", trip.mileage_km.value) \
+        .field("traveltime", trip.travelTime.value) \
         .field("electricPowerConsumed", electricPowerConsumed) \
         .field("fuelConsumed", fuelConsumed)
 
     influxWriteAPI.write(bucket=influxBucket, org=influxOrg, record=point)
-    logger.debug("trip written to InfluxDB: %s (%s)", trip["tripID"], trip["timestamp"])
+    logger.debug("trip written to InfluxDB: %s (%s)", format(trip.id.value), format(ts))
 
 def tripToCsv(trip, fil, titleRequired):
     """
@@ -512,15 +543,35 @@ def tripToCsv(trip, fil, titleRequired):
     sep = ";"
     if titleRequired:
         title = ""
-        for f in trip:
-            title = title + f + sep
-        title = title[0:len(title)-1] + "\n"
+        title = title + "id" + sep
+        title = title + "tripEndTimestamp" + sep
+        title = title + "tripType" + sep
+        title = title + "vehicleType" + sep
+        title = title + "mileage_km" + sep
+        title = title + "startMileage_km" + sep
+        title = title + "overallMileage_km" + sep
+        title = title + "travelTime" + sep
+        title = title + "averageFuelConsumption" + sep
+        title = title + "averageElectricConsumption" + sep
+        title = title + "averageSpeed_kmph" + sep
+        title = title + "averageAuxConsumption" + sep
+        title = title + "averageRecuperation" + "\n"
         fil.write(title)
     
     data = ""
-    for f in trip:
-        data = data + format(trip[f]) + sep
-    data = data[0:len(data)-1] + "\n"
+    data = data + format(trip.id) + sep
+    data = data + format(trip.tripEndTimestamp) + sep
+    data = data + format(trip.tripType) + sep
+    data = data + format(trip.vehicleType) + sep
+    data = data + format(trip.mileage_km) + sep
+    data = data + format(trip.startMileage_km) + sep
+    data = data + format(trip.overallMileage_km) + sep
+    data = data + format(trip.travelTime) + sep
+    data = data + format(trip.averageFuelConsumption) + sep
+    data = data + format(trip.averageElectricConsumption) + sep
+    data = data + format(trip.averageSpeed_kmph) + sep
+    data = data + format(trip.averageAuxConsumption) + sep
+    data = data + format(trip.averageRecuperation) + "\n"
     fil.write(data)
     logger.debug("trip written to csv file")
     
@@ -533,31 +584,31 @@ def instWeConnect():
     password = cfg["weconPassword"]
     pin = cfg["weconSPin"]
     logger.debug("Instantiating WeConnect vwc")
-    vwc = WeConnect(userName, password, pin)
+    vwc = weconnect.WeConnect(username=userName, password=password, updateAfterLogin=False, loginOnInit=False)
     logger.debug("WeConnect vwc instantiated")
     vwc.login()
     logger.debug("WeConnect login successful")
+    logger.debug("Updating")
+    vwc.update(updateCapabilities=False, updatePictures=False, force=True, selective=[Domain.MEASUREMENTS])
+    logger.debug("Update completed")
     
     # Get car to query
     theCar = None
     logger.debug("Searching car in registered cars")
-    cars = vwc.get_real_car_data()
-    if (cars and len(cars)):
-        for car in cars.get('realCars',[]):
-            vin = car.get('vehicleIdentificationNumber','UNKNOWN')
-            logger.debug("Found %s", vin)
-            if vin == cfg["weconCarId"]:
-                theCar = car
-    else:
-        raise VWError("No cars registered at WeConnect for specified profile")
-    
+
+    theCar = None
+    theVin = None
+    logger.debug("getting requested car")
+    for vin, vehicle in vwc.vehicles.items():
+        if vin == cfg["weconCarId"]:
+            theVin = vin
+            theCar = vehicle
+            logger.debug("got car %s", theVin)
+
     if theCar:
-        logger.debug("getting theVin")
-        theVin = theCar.get('vehicleIdentificationNumber','UNKNOWN')
-        logger.debug("got theVin %s", theVin)
         return vwc, theVin
     else:
-        raise VWError("Requested car not registered at WeConnect")
+        raise ValueError("Requested car not registered at WeConnect")
 
 #============================================================================================
 # Start __main__
@@ -614,12 +665,13 @@ while not stop:
             waitForNextCycle()
         noWait = False
 
+        logger.info("monitorVW - cycle started")
         local_datetime = datetime.datetime.now()
         local_datetime_timestamp = float(local_datetime.strftime("%s"))
         UTC_datetime_converted = datetime.datetime.utcfromtimestamp(local_datetime_timestamp)
         mTS = UTC_datetime_converted.strftime("%Y-%m-%dT%H:%M:%S.%f000Z")
         
-        # Log In to WE Connect
+        # Log in to WE Connect
         if not loggedIn:
             logger.debug("Login to WeConnect required")
             [vwc, theVin] = instWeConnect()
@@ -630,45 +682,46 @@ while not stop:
             newLoginCount = newLoginCount + 1
 
         # Store car data
-        logger.debug("getting status list")
-        theVsr = vwc.get_vsr(theVin)
-        thePvsr = vwc.parse_vsr(theVsr)
-        theStatus = thePvsr.get('status',[])
-        logger.debug("got theStatus")
-        logger.debug("storing car status data")
-        storeCarStatusData(mTS, theVin, theStatus, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
+        logger.debug("getting measurements")
+        vwc.update(updateCapabilities=False, updatePictures=False, force=True, selective=[Domain.MEASUREMENTS])
+        vehicle = vwc.vehicles[theVin]
+        logger.debug("got measurements")
+        logger.debug("storing car measurement data")
+        storeCarStatusData(vehicle, theVin, cfg["csvOutput"], cfg["InfluxOutput"], cfg["csvFile"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxBucket"])
         
         if "carData" in cfg:
             cfgc = cfg["carData"]
             # Store short term trip data
             if "tripDataShortTerm" in cfgc:
                 logger.debug("storing trip data shortTerm")
-                storeTripData(vwc, theVin, "shortTerm", cfgc["tripDataShortTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
+                storeTripData(vehicle, theVin, Trip.TripType.SHORTTERM, cfgc["tripDataShortTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
             
             # Store long term trip data
             if "tripDataLongTerm" in cfgc:
                 logger.debug("storing trip data longTerm")
-                storeTripData(vwc, theVin, "longTerm", cfgc["tripDataLongTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
+                storeTripData(vehicle, theVin, Trip.TripType.LONGTERM, cfgc["tripDataLongTerm"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
             
             # Store cyclic trip data
             if "tripDataCyclic" in cfgc:
                 logger.debug("storing trip data cyclic")
-                storeTripData(vwc, theVin, "cyclic", cfgc["tripDataCyclic"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
+                storeTripData(vehicle, theVin, Trip.TripType.CYCLIC, cfgc["tripDataCyclic"], influxWriteAPI, cfg["InfluxOrg"], cfg["InfluxTripBucket"])
+
+        logger.info("monitorVW - cycle completed")
 
         if testRun:
             # Stop in case of test run
             stop = True
             
         # Force login
-        del vwc
-        vwc = None
-        loggedIn = False
+        #del vwc
+        #vwc = None
+        #loggedIn = False
 
-    except VWError as error:
+    except AuthentificationError as error:
         if loggedIn:
             # if already logged in to WEConnect, it may be possible that the automatic forced login 
             # was not successful. Therefore re-instantiate vwc and try again without waiting
-            logger.warning("Unexpected VWError: %s", error.message)
+            logger.warning("Unexpected AuthentificationError: %s", error)
             logger.warning("Trying to immediately re-instantiate WE Connect handle vwc")
             if vwc:
                 del vwc
@@ -679,7 +732,7 @@ while not stop:
         else:
             # exception occured during login
             # wait a cycle an try again
-            logger.warning("Unexpected VWError: %s", error.message)
+            logger.warning("Unexpected AuthentificationError: %s", error)
             logger.warning("Trying to re-instantiate WE Connect handle vwc in next cycle")
             if vwc:
                 del vwc
@@ -699,9 +752,20 @@ while not stop:
                 if influxWriteAPI:
                     del influxWriteAPI
 
+    except APICompatibilityError as error:
+        stop = True
+        logger.critical("Unexpected APICompatibilityError: %s", error)
+        if vwc:
+            del vwc
+        if influxClient:
+            del influxClient
+        if influxWriteAPI:
+            del influxWriteAPI
+        raise error
+
     except Exception as error:
         stop = True
-        logger.critical("Unexpected Exception (%s): %s", error.__class__, error.__cause__)
+        logger.critical("Unexpected Exception: %s", error)
         if vwc:
             del vwc
         if influxClient:
@@ -719,7 +783,14 @@ while not stop:
             del influxClient
         if influxWriteAPI:
             del influxWriteAPI
-
+if vehicle:
+    del vehicle
+if vwc:
+    del vwc
+if influxClient:
+    del influxClient
+if influxWriteAPI:
+    del influxWriteAPI
 logger.info("=============================================================")
 logger.info("monitorVW terminated")
 logger.info("=============================================================")
