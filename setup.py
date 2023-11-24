@@ -43,7 +43,7 @@ setup(
     # For a discussion on single-sourcing the version across setup.py and the
     # project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version="2.0.1",  # Required
+    version="2.0.2",  # Required
     # This is a one-line description or tagline of what your project does. This
     # corresponds to the "Summary" metadata field:
     # https://packaging.python.org/specifications/core-metadata/#summary
@@ -121,34 +121,28 @@ setup(
     # and refuse to install the project if the version does not match. If you
     # do not support Python 2, you can simplify this to '>=3.5' or similar, see
     # https://packaging.python.org/guides/distributing-packages-using-setuptools/#python-requires
-    python_requires=">=3.5",
+    python_requires=">=3.8",
     # This field lists other packages that your project depends on to run.
     # Any package you put here will be installed by pip when your project is
     # installed, so they must be valid existing projects.
     #
     # For an analysis of "install_requires" vs pip's requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=["beautifulsoup4==4.11.1; python_full_version >= '3.6.0'",
-                      'bs4==0.0.1',
-                      "certifi==2023.7.22; python_version >= '3.6'",
-                      "charset-normalizer==2.1.1; python_full_version >= '3.6.0'",
-                      "colorama==0.4.6; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6'",
-                      "idna==3.4; python_version >= '3.5'",
-                      'influxdb-client==1.34.0',
-                      'logging-plus==1.1.2',
-                      "python-dateutil==2.8.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
-                      "reactivex==4.0.4; python_version >= '3.7' and python_version < '4.0'",
-                      'requests==2.28.1',
-                      'setuptools==65.5.1',
-                      "six==1.16.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
-                      "soupsieve==2.3.2.post1; python_version >= '3.6'",
-                      "typing-extensions==4.4.0; python_version >= '3.7'",
-                      "urllib3==1.26.12; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5' and python_version < '4'",
-                      'vistir==0.7.0',
-                      'xmltodict==0.13.0',
-                      'weconnect>=0.50.0',
-                      'pytz>=2023.3.post1'
-    ],  # Optional
+    install_requires=["certifi==2023.11.17; python_version >= '3.6'", 
+                      "charset-normalizer==3.3.2; python_full_version >= '3.7.0'", 
+                      "idna==3.4; python_version >= '3.5'", 
+                      'influxdb-client==1.38.0', 
+                      'logging-plus==1.1.2', 
+                      "oauthlib==3.2.2; python_version >= '3.6'", 
+                      "python-dateutil==2.8.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'", 
+                      'pytz==2023.3.post1', 
+                      "reactivex==4.0.4; python_version >= '3.7' and python_version < '4.0'", 
+                      "requests==2.31.0; python_version >= '3.7'", 
+                      "setuptools==69.0.2; python_version >= '3.8'", 
+                      "six==1.16.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'", 
+                      "typing-extensions==4.8.0; python_version >= '3.8'", 
+                      "urllib3==2.1.0; python_version >= '3.8'", 
+                      'weconnect==0.59.5'],  # Optional
     # List additional groups of dependencies here (e.g. development
     # dependencies). Users will be able to install these using the "extras"
     # syntax, for example:
