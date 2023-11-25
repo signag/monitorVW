@@ -219,12 +219,22 @@ def getConfig():
             cfgFile = ""
 
     if cfgFile == "":
-        # Check for config file in home directory
+        # Check for config file in ./config directory
+        curDir = os.path.dirname(os.path.realpath(__file__))
+        curDir = os.path.dirname(curDir)
+        cfgFile = curDir + "/config/" + CFGFILENAME
+        if not os.path.exists(cfgFile):
+            # Check for config file in ./config directory
+            logger.info("Config file not found: %s", cfgFile)
+            cfgFile = ""
+
+    if cfgFile == "":
+        # Check for config file in $HOME/.config directory
         homeDir = os.environ['HOME']
         cfgFile = homeDir + "/.config/" + CFGFILENAME
         if not os.path.exists(cfgFile):
-            # Check for config file in /etc directory
             logger.info("Config file not found: %s", cfgFile)
+            # Check for config file in etc directory
             cfgFile = "/etc/" + CFGFILENAME
             if not os.path.exists(cfgFile):
                 logger.info("Config file not found: %s", cfgFile)
@@ -667,7 +677,7 @@ while not stop:
 
         logger.info("monitorVW - cycle started")
         local_datetime = datetime.datetime.now()
-        local_datetime_timestamp = float(local_datetime.strftime("%s"))
+        local_datetime_timestamp = round(local_datetime.timestamp())
         UTC_datetime_converted = datetime.datetime.utcfromtimestamp(local_datetime_timestamp)
         mTS = UTC_datetime_converted.strftime("%Y-%m-%dT%H:%M:%S.%f000Z")
         
