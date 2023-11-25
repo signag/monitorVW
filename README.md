@@ -14,22 +14,26 @@ In order to use the program you need
 InfluxDB (<https://www.influxdata.com/products/influxdb-overview/>) is a time series database which can be used as cloud version or local installation on various platforms.
 
 For visualization with Grafana, see <https://grafana.com/>
+
 A visualization client is available at <https://github.com/signag/Hybrid-Car-Consumption-Monitor>
 
 ## Getting started
 
 | Step | Action                                                                                                                                       |
 |------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.   | Install **monitorVW** (```[sudo] pip install monitorVW```) on a Linux system (e.g. Raspberry Pi)                                             |
-| 2.   | Install and configure an InfluxDB V2.4 (<https://docs.influxdata.com/influxdb/v2.4/install/>)                                                |
-| 3.   | In InfluxDB, create a new bucket for status data (<https://docs.influxdata.com/influxdb/v2.4/organizations/buckets/create-bucket/>)          |
-| 4.   | In InfluxDB, create a new bucket for trip data this should be different from status data because of longer retention period                  |
-| 5.   | In InfluxDB, create an API Token with write access to the buckets (<https://docs.influxdata.com/influxdb/v2.4/security/tokens/create-token/>)|
+| 1.   | Install and configure an InfluxDB V2.4 (<https://docs.influxdata.com/influxdb/v2.4/install/>)                                                |
+| 2.   | In InfluxDB, create a new bucket for status data (<https://docs.influxdata.com/influxdb/v2.4/organizations/buckets/create-bucket/>)          |
+| 3.   | In InfluxDB, create a new bucket for trip data. This should be different from status data because of longer retention period                  |
+| 4.   | In InfluxDB, create an API Token with write access to the buckets (<https://docs.influxdata.com/influxdb/v2.4/security/tokens/create-token/>)|
+| 5.   | Install **monitorVW** (```[sudo] pip install monitorVW```) on a Linux system (e.g. Raspberry Pi)
+|      | Alternatively run  the latest <https://hub.docker.com/repository/docker/signag/monitorvw> image in a **Docker** container.<br>For the container, you will need to map the containers ```/app/config``` directory to a container-external directory, where the configuration file needs to be staged (see step 6).
 | 6.   | Create and stage configuration file for **monitorVW** (see [Configuration](#configuration))                                                  |
 | 7.   | Do a test run (see [Usage](#usage))                                                                                                          |
 | 8.   | Set up **monitorVW** service (see [Serviceconfiguration](#serviceconfiguration))                                                             |
 
 ## Usage
+
+(Not required when running the **Docker** image)
 
 ```shell
 usage: monitorVW.py [-h] [-t] [-s] [-l] [-L] [-F] [-f FILE] [-v] [-c CONFIG]
@@ -62,17 +66,20 @@ options:
 ## Configuration
 
 Configuration for **monitorVW** needs to be provided in a specific configuration file.
-By default, a configuration file "monitorVW.json" is searched under ```$HOME/.config``` or under ```/etc```.
 
-For testing in a development environment, primarily the location ```../tests/data``` is searched for a configuration file.
+By default, a configuration file "monitorVW.json" is searched in the given sequence under ```$ROOT/config```, ```$HOME/.config``` or under ```/etc```. <br>Here, ```$ROOT``` is the project root directory and ```$HOME``` is the home directory of the user running the program.
+
+For testing in a development environment, primarily the location ```$ROOT/tests/data``` is searched for a configuration file.
 
 Alternatively, the path to the configuration file can be specified on the command line.
+
+The **Docker** image expects a configuration file "monitorVW.json" under ```/app/config``` which should be mapped to a directory in a container-external file system.
 
 ### Structure of JSON Configuration File
 
 The following is an example of a configuration file:
 A a template can be found under
-```./data``` in the installation folder.
+```$ROOT/config``` in the installation folder.
 
 ```json
 {
@@ -147,6 +154,7 @@ A a template can be found under
 | - **tripDataCyclic**    | Aggregated trips from one fill-up to the next                                                                     | No                 |
 
 ## InfluxDB Data Schema
+
 **monitorVW** uses the following schema when storing measurements in the database:
 
 |Data Element              |Description                                                      |
@@ -170,10 +178,12 @@ A a template can be found under
 
 ## Serviceconfiguration
 
+(Not required when running the **Docker** image)
+
 To continuously log car data, **monitorVW** should be run as service.
 
 A service configuration file template can be found under
-```./data``` in the installation folder.
+```$ROOT/config``` in the installation folder.
 
 | Step | Action                                                                                             |
 |------|----------------------------------------------------------------------------------------------------|
