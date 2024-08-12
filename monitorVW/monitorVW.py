@@ -8,7 +8,6 @@ and and stores specific car data in an InfluxDB or a CVS file
 
 import time
 import datetime
-import pytz
 import math
 import os.path
 import json
@@ -603,11 +602,11 @@ def storeTripData(
                     if len(conf["InfluxDaysBefore"]) > 0:
                         timePeriods = conf["InfluxDaysBefore"]
             timePeriod = int(timePeriods)
-            timeStartPeriod = datetime.datetime.utcnow() - datetime.timedelta(
+            timeStartPeriod = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
                 days=timePeriod
             )
 
-            timeStart = timeStartDate
+            timeStart = timeStartDate.replace(tzinfo=datetime.UTC)
             if timeStartPeriod > timeStart:
                 timeStart = timeStartPeriod
 
@@ -631,7 +630,7 @@ def storeTripData(
         for trip in trips:
             if conf["InfluxOutput"]:
                 ts = trip.tripEndTimestamp.value
-                ts = ts.replace(tzinfo=None)
+                #ts = ts.replace(tzinfo=None)
                 if ts >= timeStart:
                     tripToInflux(
                         measurement, vin, trip, influxWriteAPI, influxOrg, influxBucket
@@ -813,8 +812,9 @@ while not stop:
         logger.info("monitorVW - cycle started")
         local_datetime = datetime.datetime.now()
         local_datetime_timestamp = round(local_datetime.timestamp())
-        UTC_datetime_converted = datetime.datetime.utcfromtimestamp(
-            local_datetime_timestamp
+        UTC_datetime_converted = datetime.datetime.fromtimestamp(
+            local_datetime_timestamp,
+            datetime.UTC
         )
         mTS = UTC_datetime_converted.strftime("%Y-%m-%dT%H:%M:%S.%f000Z")
 

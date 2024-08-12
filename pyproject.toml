@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "monitorVW"
+version = "2.4.0"
+authors = [
+  { name="signag", email="siegfried.nagel@t-online.de" },
+]
+description = "Read VW car data from We Connect and store in Influx DB"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  "influxdb-client>=1.44.0",
+  "weconnect>=0.60.4",
+  "requests>=2.32.3",
+  "logging-plus>=1.2.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/signag/py-logging-plus"
+Issues = "https://github.com/signag/py-logging-plus/issues"
