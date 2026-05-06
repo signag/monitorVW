@@ -567,6 +567,10 @@ def fetchAllTrips(
     )
     if data is not None and "data" in data:
         for datan in data["data"]:
+            if "totalElectricConsumption_kwh" in datan:
+                datan.pop("totalElectricConsumption_kwh")
+            if "totalFuelConsumption_L" in datan:
+                datan.pop("totalFuelConsumption_L")
             allTrips.append(
                 Trip(
                     vehicle=vehicle,
