@@ -1,0 +1,9 @@
+name: monitorvw
+services:
+  monitorvw:
+    container_name: monitorvw
+    build: .
+    image: signag/monitorvw
+    platform: linux/amd64
+    restart: unless-stopped
+    privileged: true
