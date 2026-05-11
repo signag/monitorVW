@@ -182,8 +182,8 @@ def getCl():
     if args.verbose or args.service:
         if not args.log and not args.Log and not args.Full:
             logger.addHandler(handler)
-            # logger.setLevel(logging.INFO)
-            logger.setLevel(logging.WARNING)
+            logger.setLevel(logging.INFO)
+            # logger.setLevel(logging.WARNING)
             fLogger.addHandler(handler)
             fLogger.setLevel(logging.WARNING)
             vLogger.addHandler(handler)
@@ -815,7 +815,7 @@ while not stop:
         noWait = False
         waitUntilMidnight = False
 
-        logger.info("monitorVW - cycle started")
+        logger.debug("monitorVW - cycle started")
         local_datetime = datetime.datetime.now()
         local_datetime_timestamp = round(local_datetime.timestamp())
         UTC_datetime_converted = datetime.datetime.fromtimestamp(
@@ -897,7 +897,7 @@ while not stop:
                     cfg["InfluxTripBucket"],
                 )
 
-        logger.info("monitorVW - cycle completed")
+        logger.debug("monitorVW - cycle completed")
 
         if testRun:
             # Stop in case of test run
