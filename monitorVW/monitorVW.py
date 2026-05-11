@@ -182,7 +182,8 @@ def getCl():
     if args.verbose or args.service:
         if not args.log and not args.Log and not args.Full:
             logger.addHandler(handler)
-            logger.setLevel(logging.INFO)
+            # logger.setLevel(logging.INFO)
+            logger.setLevel(logging.WARNING)
             fLogger.addHandler(handler)
             fLogger.setLevel(logging.WARNING)
             vLogger.addHandler(handler)
@@ -799,6 +800,7 @@ noWait = False
 waitUntilMidnight = False
 stop = False
 failcount = 0
+exceptioncount = 0
 loggedIn = False
 vwc = None
 newLoginMax = math.floor(3599 / cfg["measurementInterval"])
@@ -901,6 +903,8 @@ while not stop:
             # Stop in case of test run
             stop = True
 
+        exceptioncount = 0
+
         # Force login
         # del vwc
         # vwc = None
@@ -975,15 +979,23 @@ while not stop:
         raise error
 
     except Exception as error:
-        stop = True
-        logger.critical("Unexpected Exception: %s", error)
-        if vwc:
-            del vwc
-        if influxClient:
-            del influxClient
-        if influxWriteAPI:
-            del influxWriteAPI
-        raise error
+        exceptioncount = exceptioncount + 1
+        if exceptioncount <= 10:
+            logger.error("Unexpected Exception (%s): %s", error.__class__, error.__cause__)
+            stop = False
+            noWait = False
+            waitUntilMidnight = False
+            time.sleep(10)
+        else:
+            stop = True
+            logger.critical("Unexpected Exception: %s", error)
+            if vwc:
+                del vwc
+            if influxClient:
+                del influxClient
+            if influxWriteAPI:
+                del influxWriteAPI
+            raise error
 
     except KeyboardInterrupt:
         stop = True

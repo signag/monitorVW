@@ -137,6 +137,7 @@ weconnectAPI.session
 
 # Test
 #Test data
+tests
 config/monitorVW.json
 tests/data/
 tests/output/
