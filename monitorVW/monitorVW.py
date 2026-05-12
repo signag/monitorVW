@@ -914,8 +914,8 @@ while not stop:
         if loggedIn:
             # if already logged in to WEConnect, it may be possible that the automatic forced login
             # was not successful. Therefore re-instantiate vwc and try again without waiting
-            logger.warning("Unexpected AuthentificationError: %s", error)
-            logger.warning("Trying to immediately re-instantiate WE Connect handle vwc")
+            logger.error("Unexpected AuthentificationError: %s", error)
+            logger.error("Trying to immediately re-instantiate WE Connect handle vwc")
             if vwc:
                 del vwc
                 vwc = None
@@ -925,8 +925,8 @@ while not stop:
         else:
             # exception occured during login
             # wait a cycle an try again
-            logger.warning("Unexpected AuthentificationError: %s", error)
-            logger.warning(
+            logger.error("Unexpected AuthentificationError: %s", error)
+            logger.error(
                 "Trying to re-instantiate WE Connect handle vwc in next cycle"
             )
             if vwc:
@@ -951,7 +951,7 @@ while not stop:
                     del influxWriteAPI
 
     except TooManyRequestsError as error:
-        logger.info("Too many requests from your account. Retrying after midnight.")
+        logger.error("Too many requests from your account. Retrying after midnight.")
         if loggedIn:
             # if already logged in to WEConnect, logg off and force new login
             if vehicle:
@@ -983,7 +983,7 @@ while not stop:
         if exceptioncount <= 10:
             logger.error("Unexpected Exception (%s): %s", error.__class__, error.__cause__)
             stop = False
-            noWait = False
+            noWait = True
             waitUntilMidnight = False
             time.sleep(10)
         else:
